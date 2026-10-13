@@ -1,0 +1,207 @@
+@startuml Facade
+skinparam classAttributeIconSize 0
+skinparam defaultFontName Helvetica
+skinparam defaultFontSize 12
+skinparam packageStyle rectangle
+skinparam nodesep 25
+skinparam ranksep 45
+skinparam class {
+  BackgroundColor<<Facade>> #FDE9D6
+  BackgroundColor<<Subsystem>> #DBE9F7
+  BackgroundColor<<Client>> #E3F4E1
+}
+hide empty members
+
+package "pcshop  (clients)" {
+  class ShopDemo <<Client>> {
+    +{static} main(args : String[]) : void
+    -{static} printPriceList(shop : PcShopFacade) : void
+    -{static} placeOrder(shop : PcShopFacade, order : PcOrder) : void
+    -{static} section(title : String) : void
+  }
+  class AdvancedClientDemo <<Client>> {
+    +{static} main(args : String[]) : void
+    -{static} section(title : String) : void
+  }
+}
+
+package "pcshop.facade" {
+  class PcShopFacade <<Facade>> {
+    -shop : ShopSubsystems
+    -nextOrderNumber : int
+    +PcShopFacade()
+    +PcShopFacade(shop : ShopSubsystems)
+    +quote(pcType : PcType, platform : Platform, operatingSystem : OperatingSystem) : int
+    +isAvailable(pcType : PcType, platform : Platform) : boolean
+    +orderPc(order : PcOrder) : OrderReceipt
+    -ensureDeliverable(city : String) : void
+    -compatibleBuildFor(order : PcOrder) : List<Part>
+    -reserve(parts : List<Part>) : Reservation
+    -buildAndTest(reservation : Reservation, operatingSystem : OperatingSystem) : AssembledPc
+    -receipt(order : PcOrder, pc : AssembledPc, shipment : Shipment) : OrderReceipt
+    -{static} asOrderFailure(failure : RuntimeException) : OrderFailedException
+  }
+  class ShopSubsystems <<record>> {
+    catalog : PartCatalog
+    inventory : Inventory
+    compatibilityChecker : CompatibilityChecker
+    priceCalculator : PriceCalculator
+    workshop : AssemblyWorkshop
+    osInstaller : OsInstaller
+    burnInTester : BurnInTester
+    courier : CourierService
+    ~{static} STANDARD_STOCK_PER_PART : int = 3
+    ~{static} LIMITED_STOCK : Map<String, Integer>
+    +ShopSubsystems(...)  <<compact, null checks>>
+    +{static} standard() : ShopSubsystems
+    +withOsInstaller(replacement : OsInstaller) : ShopSubsystems
+    +withBurnInTester(replacement : BurnInTester) : ShopSubsystems
+    -{static} stockedInventory(catalog : PartCatalog) : Inventory
+  }
+  class OrderFailedException {
+    -reason : OrderFailure
+    +OrderFailedException(reason : OrderFailure, message : String)
+    +OrderFailedException(reason : OrderFailure, message : String, cause : Throwable)
+    +reason() : OrderFailure
+  }
+  enum OrderFailure {
+    UNSUPPORTED_CITY
+    INCOMPATIBLE_PARTS
+    OUT_OF_STOCK
+    QUALITY_CHECK_FAILED
+    INTERNAL_ERROR
+  }
+}
+
+package "pcshop.subsystem  (complex subsystem - knows nothing about the Facade)" {
+  class PartCatalog <<Subsystem>> {
+    -{static} LGA_1700 : String
+    -{static} AM5 : String
+    -partsBySku : Map<String, Part>
+    +PartCatalog()
+    +allParts() : Collection<Part>
+    +findBySku(sku : String) : Part
+    +standardBuild(pcType : PcType, platform : Platform) : List<Part>
+    -addIntelParts() : void
+    -addAmdParts() : void
+    -addSharedParts() : void
+    -add(part : Part) : void
+  }
+  class Inventory <<Subsystem>> {
+    -stockBySku : Map<String, Integer>
+    -activeReservationIds : Set<Integer>
+    -nextReservationId : int
+    +restock(sku : String, quantity : int) : void
+    +stockOf(sku : String) : int
+    +isInStock(parts : List<Part>) : boolean
+    +reserve(parts : List<Part>) : Reservation
+    +release(reservation : Reservation) : void
+    -findMissingPart(parts : List<Part>) : Optional<Part>
+    -{static} countBySku(parts : List<Part>) : Map<String, Long>
+  }
+  class CompatibilityChecker <<Subsystem>> {
+    ~{static} PSU_HEADROOM : double = 1.3
+    -{static} EXACTLY_ONE : List<PartType>
+    -{static} AT_LEAST_ONE : List<PartType>
+    +findProblems(parts : List<Part>) : List<String>
+    +isCompatible(parts : List<Part>) : boolean
+    +{static} powerDrawWatts(parts : List<Part>) : int
+    -findMissingOrDuplicateParts(parts : List<Part>) : List<String>
+    -findSocketMismatch(parts : List<Part>) : List<String>
+    -findWeakPowerSupply(parts : List<Part>) : List<String>
+    -{static} countOf(type : PartType, parts : List<Part>) : long
+    -{static} onlyPartOf(type : PartType, parts : List<Part>) : Part
+  }
+  class PriceCalculator <<Subsystem>> {
+    ~{static} ASSEMBLY_FEE_KZT : int = 25000
+    +totalPriceKzt(parts : List<Part>, operatingSystem : OperatingSystem) : int
+    +partsPriceKzt(parts : List<Part>) : int
+  }
+  class AssemblyWorkshop <<Subsystem>> {
+    -nextSerial : int
+    +assemble(reservation : Reservation) : AssembledPc
+  }
+  class OsInstaller <<Subsystem>> {
+    +install(operatingSystem : OperatingSystem, pc : AssembledPc) : void
+  }
+  class BurnInTester <<Subsystem>> {
+    ~{static} PEAK_LOAD_FACTOR : double = 1.2
+    +run(pc : AssembledPc) : TestReport
+  }
+  class CourierService <<Subsystem>> {
+    -{static} DELIVERY_DAYS_BY_CITY : Map<String, Integer>
+    -today : Supplier<LocalDate>
+    -nextTrackingNumber : int
+    +CourierService()
+    +CourierService(today : Supplier<LocalDate>)
+    +coveredCities() : Set<String>
+    +deliversTo(city : String) : boolean
+    +ship(serialNumber : String, city : String) : Shipment
+  }
+  class AssembledPc {
+    -serialNumber : String
+    -parts : List<Part>
+    -installedOs : OperatingSystem
+    ~AssembledPc(serialNumber : String, parts : List<Part>)
+    +serialNumber() : String
+    +parts() : List<Part>
+    +installedOs() : Optional<OperatingSystem>
+    ~markOsInstalled(operatingSystem : OperatingSystem) : void
+  }
+  class Reservation <<record>> {
+    id : int
+    parts : List<Part>
+    +Reservation(...)  <<compact, copies list>>
+  }
+  class TestReport <<record>> {
+    serialNumber : String
+    peakLoadWatts : int
+    psuWatts : int
+    passed : boolean
+    summary : String
+  }
+  class Shipment <<record>> {
+    trackingNumber : String
+    city : String
+    estimatedDelivery : LocalDate
+  }
+  class OutOfStockException {
+    +OutOfStockException(partModel : String)
+  }
+}
+
+' --- client side ---
+ShopDemo ..> PcShopFacade : uses only
+AdvancedClientDemo ..> PartCatalog : bypasses facade
+AdvancedClientDemo ..> CompatibilityChecker
+AdvancedClientDemo ..> Inventory
+
+' --- facade side ---
+PcShopFacade *--> "1" ShopSubsystems
+PcShopFacade ..> OrderFailedException : throws
+OrderFailedException --> OrderFailure
+
+ShopSubsystems o--> PartCatalog
+ShopSubsystems o--> Inventory
+ShopSubsystems o--> CompatibilityChecker
+ShopSubsystems o----> PriceCalculator
+ShopSubsystems o----> AssemblyWorkshop
+ShopSubsystems o----> OsInstaller
+ShopSubsystems o----> BurnInTester
+ShopSubsystems o--> CourierService
+
+' --- layout only (no meaning) ---
+PartCatalog -[hidden]down- PriceCalculator
+Inventory -[hidden]down- AssemblyWorkshop
+CompatibilityChecker -[hidden]down- BurnInTester
+CourierService -[hidden]down- OsInstaller
+
+' --- inside the subsystem ---
+Inventory ..> Reservation : creates
+Inventory ..> OutOfStockException : throws
+AssemblyWorkshop ..> AssembledPc : creates
+OsInstaller ..> AssembledPc : installs OS
+BurnInTester ..> TestReport : creates
+BurnInTester ..> CompatibilityChecker : powerDrawWatts
+CourierService ..> Shipment : creates
+@enduml

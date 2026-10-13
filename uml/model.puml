@@ -1,0 +1,90 @@
+@startuml Model
+skinparam classAttributeIconSize 0
+skinparam defaultFontName Helvetica
+skinparam defaultFontSize 12
+skinparam packageStyle rectangle
+skinparam nodesep 25
+skinparam ranksep 45
+skinparam class {
+  BackgroundColor<<Facade>> #FDE9D6
+  BackgroundColor<<Subsystem>> #DBE9F7
+  BackgroundColor<<Client>> #E3F4E1
+}
+hide empty members
+
+package "pcshop.model  (data shared by client, facade and subsystem)" {
+  class PcOrder <<record>> {
+    customerName : String
+    pcType : PcType
+    platform : Platform
+    operatingSystem : OperatingSystem
+    deliveryCity : String
+    +PcOrder(...)  <<compact, validation>>
+    +pcDescription() : String
+    -{static} requireText(value : String, fieldName : String) : void
+  }
+  class OrderReceipt <<record>> {
+    orderNumber : String
+    customerName : String
+    pcDescription : String
+    serialNumber : String
+    totalPriceKzt : int
+    trackingNumber : String
+    estimatedDelivery : LocalDate
+    +toString() : String
+  }
+  class Part <<record>> {
+    sku : String
+    type : PartType
+    model : String
+    socket : String
+    watts : int
+    priceKzt : int
+    +{static} NO_SOCKET : String = "-"
+    +Part(...)  <<compact, validation>>
+    +isPowerSupply() : boolean
+    +toString() : String
+  }
+  enum PartType {
+    CPU
+    MOTHERBOARD
+    RAM
+    GPU
+    STORAGE
+    PSU
+    CASE
+  }
+  enum PcType {
+    OFFICE
+    GAMING
+    WORKSTATION
+    -displayName : String
+    -PcType(displayName : String)
+    +displayName() : String
+  }
+  enum Platform {
+    INTEL
+    AMD
+    -displayName : String
+    -Platform(displayName : String)
+    +displayName() : String
+  }
+  enum OperatingSystem {
+    WINDOWS_11_HOME
+    WINDOWS_11_PRO
+    UBUNTU_24_04
+    -displayName : String
+    -licensePriceKzt : int
+    -OperatingSystem(displayName : String, licensePriceKzt : int)
+    +displayName() : String
+    +licensePriceKzt() : int
+  }
+}
+
+
+OrderReceipt -[hidden]- PcOrder
+Part --> PartType
+PcOrder --> PcType
+PcOrder --> Platform
+PcOrder --> OperatingSystem
+@enduml
